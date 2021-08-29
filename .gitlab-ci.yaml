@@ -37,7 +37,7 @@ sonarcloud-check:
     script:
       -sonar-scanner
       -apk add bash
-      -bash <(Curl -s https://codecov.io/bash) -t
+      -bash <(Curl -s https://codecov.io/bash) -t 7af4675a5b6bbcec540e46593bb764874f9da974
     only:
       - merge_requests
       - master

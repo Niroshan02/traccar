@@ -15,9 +15,13 @@
  */
 package org.traccar.protocol;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.regex.Pattern;
+
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.Context;
 import org.traccar.DeviceSession;
@@ -31,12 +35,9 @@ import org.traccar.model.CellTower;
 import org.traccar.model.Network;
 import org.traccar.model.Position;
 
-import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.regex.Pattern;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 
 public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
 
@@ -84,6 +85,9 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
             .number("(x{4})?")                   // fuel
             .groupBegin()
             .number(",(x{6}(?:|x{6})*)?")        // temperature
+            .number(",(x{6}(?:\\|x{6})*?")       // temperature refinement
+            .number(",(d+)?'")                   // Accleration value (MAX)
+            .number(",(d+)?'")                   // Deceleration value (MAX)
             .groupBegin()
             .number(",(d+)")                     // data count
             .expression(",([^*]*)")              // data
@@ -240,10 +244,10 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
             position.set(Position.KEY_FUEL_LEVEL,
                     Integer.parseInt(fuel.substring(0, 2), 16) + Integer.parseInt(fuel.substring(2), 16) * 0.01);
         }
-
+        int index = 0;
         if (parser.hasNext()) {
             for (String temp : parser.next().split("\\|")) {
-                int index = Integer.parseInt(temp.substring(0, 2), 16);
+                index = Integer.parseInt(temp.substring(0, 2), 16);
                 if (protocol >= 3) {
                     double value = (short) Integer.parseInt(temp.substring(2), 16);
                     position.set(Position.PREFIX_TEMP + index, value * 0.01);
@@ -252,7 +256,16 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
                     value += (value < 0 ? -0.01 : 0.01) * Integer.parseInt(temp.substring(4), 16);
                     position.set(Position.PREFIX_TEMP + index, value);
                 }
+                index++;
             }
+        }
+
+        if(parser.hasNext()){
+            position.set(Position.KEY_MAX_ACCELERATION, parser.nextInt());
+        }
+
+        if(parser.hasNext()){
+            position.set(Position.KEY_MAX_DECELERATION, parser.nextInt());
         }
 
         if (parser.hasNext(2)) {
